@@ -192,7 +192,7 @@ static esp_err_t post_sleep(httpd_req_t *request)
     // Press and release the sleep button
     uint8_t value = SYSTEM_SLEEP;
     tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(500));
     value = SYSTEM_RELEASE;
     tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
 
