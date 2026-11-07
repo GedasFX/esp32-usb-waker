@@ -5,6 +5,7 @@
 #include "esp_http_server.h"
 #include "esp_netif.h"
 #include "esp_ota_ops.h"
+#include "esp_pm.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -57,19 +58,24 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 }
 
 // The host says, as it suspends the bus, whether it lets this device wake it.
-void tud_suspend_cb(bool remote_wakeup_en)
+static void on_usb_event(tinyusb_event_t *event, void *arg)
 {
-    remote_wakeup_enabled = remote_wakeup_en;
-}
-
-void tud_resume_cb(void)
-{
-    remote_wakeup_enabled = false;
+    if (event->id == TINYUSB_EVENT_SUSPENDED) {
+        remote_wakeup_enabled = event->suspended.remote_wakeup;
+    } else if (event->id == TINYUSB_EVENT_RESUMED) {
+        remote_wakeup_enabled = false;
+    }
 }
 
 static void start_usb(void)
 {
-    tinyusb_config_t config = TINYUSB_DEFAULT_CONFIG();
+    // Light sleep whenever esp_tinyusb releases its lock: while the bus is suspended
+    esp_pm_config_t power = {.max_freq_mhz = 80, .min_freq_mhz = 80, .light_sleep_enable = true};
+    ESP_ERROR_CHECK(esp_pm_configure(&power));
+
+    // Describe the keyboard and hand esp_tinyusb the sleep lock
+    tinyusb_config_t config = TINYUSB_DEFAULT_CONFIG(on_usb_event);
+    config.pm_lock_enable = true;
     config.descriptor.full_speed_config = configuration_descriptor;
     config.descriptor.string = string_descriptor;
     config.descriptor.string_count = sizeof(string_descriptor) / sizeof(string_descriptor[0]);
@@ -176,7 +182,7 @@ static esp_err_t post_wake(httpd_req_t *request)
     if (!tud_suspended()) {
         return reply(request, "200 OK", "awake\n");
     }
-    if (!tud_remote_wakeup()) {
+    if (tinyusb_remote_wakeup() != ESP_OK) {
         return reply(request, "409 Conflict", "the host did not enable remote wakeup\n");
     }
 
