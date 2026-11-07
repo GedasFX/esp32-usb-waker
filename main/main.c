@@ -6,6 +6,8 @@
 #include "esp_netif.h"
 #include "esp_pm.h"
 #include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "mdns.h"
 #include "nvs_flash.h"
 #include "tinyusb.h"
@@ -16,8 +18,14 @@
 
 static volatile bool remote_wakeup_enabled;
 
+enum { REPORT_KEYBOARD = 1, REPORT_SYSTEM = 2 };
+
+// System control report values, in the order of its usages.
+enum { SYSTEM_RELEASE = 0, SYSTEM_SLEEP = 2 };
+
 static const uint8_t report_descriptor[] = {
-    TUD_HID_REPORT_DESC_KEYBOARD(),
+    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_KEYBOARD)),
+    TUD_HID_REPORT_DESC_SYSTEM_CONTROL(HID_REPORT_ID(REPORT_SYSTEM)),
 };
 
 static const char *string_descriptor[] = {
@@ -30,7 +38,7 @@ static const char *string_descriptor[] = {
 
 static const uint8_t configuration_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_KEYBOARD, sizeof(report_descriptor), 0x81, 8, 10),
+    TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_NONE, sizeof(report_descriptor), 0x81, 16, 10),
 };
 
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
@@ -178,6 +186,26 @@ static esp_err_t post_wake(httpd_req_t *request)
     return reply(request, "202 Accepted", "waking\n");
 }
 
+// Windows ignores a shorter press; with quest's display off, the first press only lights it.
+static esp_err_t post_sleep(httpd_req_t *request)
+{
+    if (!authorized(request)) {
+        return reply(request, "401 Unauthorized", "bad token\n");
+    }
+    if (!tud_mounted() || tud_suspended() || !tud_hid_ready()) {
+        return reply(request, "409 Conflict", "quest is not awake\n");
+    }
+
+    // Press and release the sleep button
+    uint8_t value = SYSTEM_SLEEP;
+    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
+    vTaskDelay(pdMS_TO_TICKS(500));
+    value = SYSTEM_RELEASE;
+    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
+
+    return reply(request, "202 Accepted", "sleeping\n");
+}
+
 static void start_http(void)
 {
     httpd_handle_t server = NULL;
@@ -186,8 +214,10 @@ static void start_http(void)
 
     httpd_uri_t status = {.uri = "/status", .method = HTTP_GET, .handler = get_status};
     httpd_uri_t wake = {.uri = "/wake", .method = HTTP_POST, .handler = post_wake};
+    httpd_uri_t sleep = {.uri = "/sleep", .method = HTTP_POST, .handler = post_sleep};
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &status));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wake));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &sleep));
 }
 
 void app_main(void)
