@@ -4,12 +4,8 @@
 #include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_netif.h"
-#include "esp_ota_ops.h"
 #include "esp_pm.h"
-#include "esp_system.h"
 #include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "mdns.h"
 #include "nvs_flash.h"
 #include "tinyusb.h"
@@ -20,14 +16,8 @@
 
 static volatile bool remote_wakeup_enabled;
 
-enum { REPORT_KEYBOARD = 1, REPORT_SYSTEM = 2 };
-
-// System control report values, in the order of its usages.
-enum { SYSTEM_RELEASE = 0, SYSTEM_SLEEP = 2 };
-
 static const uint8_t report_descriptor[] = {
-    TUD_HID_REPORT_DESC_KEYBOARD(HID_REPORT_ID(REPORT_KEYBOARD)),
-    TUD_HID_REPORT_DESC_SYSTEM_CONTROL(HID_REPORT_ID(REPORT_SYSTEM)),
+    TUD_HID_REPORT_DESC_KEYBOARD(),
 };
 
 static const char *string_descriptor[] = {
@@ -40,7 +30,7 @@ static const char *string_descriptor[] = {
 
 static const uint8_t configuration_descriptor[] = {
     TUD_CONFIG_DESCRIPTOR(1, 1, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_NONE, sizeof(report_descriptor), 0x81, 16, 10),
+    TUD_HID_DESCRIPTOR(0, 4, HID_ITF_PROTOCOL_KEYBOARD, sizeof(report_descriptor), 0x81, 8, 10),
 };
 
 uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
@@ -163,9 +153,8 @@ static esp_err_t reply(httpd_req_t *request, const char *status, const char *bod
 
 static esp_err_t get_status(httpd_req_t *request)
 {
-    const char *version = esp_app_get_description()->version;
-    char body[160];
-    snprintf(body, sizeof(body), "{\"usb\":\"%s\",\"remoteWakeup\":%s,\"version\":\"%s\"}\n", usb_state(), remote_wakeup_enabled ? "true" : "false", version);
+    char body[64];
+    snprintf(body, sizeof(body), "{\"usb\":\"%s\",\"remoteWakeup\":%s}\n", usb_state(), remote_wakeup_enabled ? "true" : "false");
     httpd_resp_set_type(request, "application/json");
 
     return httpd_resp_sendstr(request, body);
@@ -189,70 +178,6 @@ static esp_err_t post_wake(httpd_req_t *request)
     return reply(request, "202 Accepted", "waking\n");
 }
 
-static esp_err_t post_sleep(httpd_req_t *request)
-{
-    if (!authorized(request)) {
-        return reply(request, "401 Unauthorized", "bad token\n");
-    }
-    if (!tud_mounted() || tud_suspended() || !tud_hid_ready()) {
-        return reply(request, "409 Conflict", "quest is not awake\n");
-    }
-
-    // Press and release the sleep button
-    uint8_t value = SYSTEM_SLEEP;
-    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
-    vTaskDelay(pdMS_TO_TICKS(500));
-    value = SYSTEM_RELEASE;
-    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
-
-    return reply(request, "202 Accepted", "sleeping\n");
-}
-
-static bool receive_image(httpd_req_t *request, esp_ota_handle_t ota)
-{
-    char buffer[1024];
-    int left = request->content_len;
-    while (left > 0) {
-        int received = httpd_req_recv(request, buffer, left < sizeof(buffer) ? left : sizeof(buffer));
-        if (received == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
-        }
-        if (received <= 0 || esp_ota_write(ota, buffer, received) != ESP_OK) {
-            return false;
-        }
-        left -= received;
-    }
-
-    return true;
-}
-
-// Writes the uploaded app into the free slot, boots it next, and restarts.
-static esp_err_t post_update(httpd_req_t *request)
-{
-    if (!authorized(request)) {
-        return reply(request, "401 Unauthorized", "bad token\n");
-    }
-
-    const esp_partition_t *slot = esp_ota_get_next_update_partition(NULL);
-    esp_ota_handle_t ota;
-    if (esp_ota_begin(slot, OTA_SIZE_UNKNOWN, &ota) != ESP_OK) {
-        return reply(request, "500 Internal Server Error", "can't start the update\n");
-    }
-    if (!receive_image(request, ota)) {
-        esp_ota_abort(ota);
-        return reply(request, "400 Bad Request", "upload failed\n");
-    }
-    if (esp_ota_end(ota) != ESP_OK || esp_ota_set_boot_partition(slot) != ESP_OK) {
-        return reply(request, "400 Bad Request", "not a valid app image\n");
-    }
-
-    reply(request, "200 OK", "updated, restarting\n");
-    vTaskDelay(pdMS_TO_TICKS(500));
-    esp_restart();
-
-    return ESP_OK;
-}
-
 static void start_http(void)
 {
     httpd_handle_t server = NULL;
@@ -261,12 +186,8 @@ static void start_http(void)
 
     httpd_uri_t status = {.uri = "/status", .method = HTTP_GET, .handler = get_status};
     httpd_uri_t wake = {.uri = "/wake", .method = HTTP_POST, .handler = post_wake};
-    httpd_uri_t sleep = {.uri = "/sleep", .method = HTTP_POST, .handler = post_sleep};
-    httpd_uri_t update = {.uri = "/update", .method = HTTP_POST, .handler = post_update};
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &status));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wake));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &sleep));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &update));
 }
 
 void app_main(void)
