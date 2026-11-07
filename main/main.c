@@ -96,10 +96,13 @@ static void start_wifi(void)
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi_event, NULL));
 
     // Join the network and keep rejoining it
-    wifi_config_t config = {.sta = {.ssid = WIFI_SSID, .password = WIFI_PASSWORD}};
+    wifi_config_t config = {.sta = {.ssid = WIFI_SSID, .password = WIFI_PASSWORD, .listen_interval = 10}};
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &config));
     ESP_ERROR_CHECK(esp_wifi_start());
+
+    // The radio wakes for every 10th beacon, about once a second
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
 
     ESP_ERROR_CHECK(mdns_init());
     ESP_ERROR_CHECK(mdns_hostname_set(HOSTNAME));
