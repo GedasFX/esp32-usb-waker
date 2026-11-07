@@ -1,4 +1,4 @@
 CONFIG_TINYUSB_HID_COUNT=1
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
-# Two app slots now, so OTA later needs no cable reflash of the partition table.
-CONFIG_PARTITION_TABLE_TWO_OTA=y
+# Two 1700 KB app slots for OTA; the 1 MB ones were 86% full at v1.
+CONFIG_PARTITION_TABLE_TWO_OTA_LARGE=y
