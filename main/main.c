@@ -67,13 +67,13 @@ static void on_usb_event(tinyusb_event_t *event, void *arg)
 
 static void start_usb(void)
 {
-    // Light sleep whenever esp_tinyusb releases its lock: while the bus is suspended
-    esp_pm_config_t power = {.max_freq_mhz = 80, .min_freq_mhz = 80, .light_sleep_enable = true};
+    // No light sleep: the S3's USB can't wake it, so after a host restart it slept through
+    // enumeration and Windows gave up on it
+    esp_pm_config_t power = {.max_freq_mhz = 80, .min_freq_mhz = 80, .light_sleep_enable = false};
     ESP_ERROR_CHECK(esp_pm_configure(&power));
 
-    // Describe the keyboard and hand esp_tinyusb the sleep lock
+    // Describe the keyboard
     tinyusb_config_t config = TINYUSB_DEFAULT_CONFIG(on_usb_event);
-    config.pm_lock_enable = true;
     config.descriptor.full_speed_config = configuration_descriptor;
     config.descriptor.string = string_descriptor;
     config.descriptor.string_count = sizeof(string_descriptor) / sizeof(string_descriptor[0]);
