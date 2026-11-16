@@ -1,0 +1,4 @@
+config DEV_MODE
+    bool "Dev mode: POST /debug/update (OTA) and GET /debug/version"
+    help
+        Needs two app slots: build with the dev preset, which adds sdkconfig.dev.

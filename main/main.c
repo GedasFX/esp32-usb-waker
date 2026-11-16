@@ -4,17 +4,21 @@
 #include "esp_event.h"
 #include "esp_http_server.h"
 #include "esp_netif.h"
-#include "esp_ota_ops.h"
 #include "esp_pm.h"
-#include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mdns.h"
 #include "nvs_flash.h"
+#include "sdkconfig.h"
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
 #include "secrets.h"
+
+#if CONFIG_DEV_MODE
+#include "esp_ota_ops.h"
+#include "esp_system.h"
+#endif
 
 #define HOSTNAME "quest-waker"
 
@@ -163,9 +167,8 @@ static esp_err_t reply(httpd_req_t *request, const char *status, const char *bod
 
 static esp_err_t get_status(httpd_req_t *request)
 {
-    const char *version = esp_app_get_description()->version;
     char body[160];
-    snprintf(body, sizeof(body), "{\"usb\":\"%s\",\"remoteWakeup\":%s,\"version\":\"%s\"}\n", usb_state(), remote_wakeup_enabled ? "true" : "false", version);
+    snprintf(body, sizeof(body), "{\"usb\":\"%s\",\"remoteWakeup\":%s}\n", usb_state(), remote_wakeup_enabled ? "true" : "false");
     httpd_resp_set_type(request, "application/json");
 
     return httpd_resp_sendstr(request, body);
@@ -209,6 +212,7 @@ static esp_err_t post_sleep(httpd_req_t *request)
     return reply(request, "202 Accepted", "sleeping\n");
 }
 
+#if CONFIG_DEV_MODE
 static bool receive_image(httpd_req_t *request, esp_ota_handle_t ota)
 {
     char buffer[1024];
@@ -254,6 +258,16 @@ static esp_err_t post_update(httpd_req_t *request)
     return ESP_OK;
 }
 
+static esp_err_t get_version(httpd_req_t *request)
+{
+    char body[64];
+    snprintf(body, sizeof(body), "{\"version\":\"%s\"}\n", esp_app_get_description()->version);
+    httpd_resp_set_type(request, "application/json");
+
+    return httpd_resp_sendstr(request, body);
+}
+#endif
+
 static void start_http(void)
 {
     httpd_handle_t server = NULL;
@@ -263,11 +277,16 @@ static void start_http(void)
     httpd_uri_t status = {.uri = "/status", .method = HTTP_GET, .handler = get_status};
     httpd_uri_t wake = {.uri = "/wake", .method = HTTP_POST, .handler = post_wake};
     httpd_uri_t sleep = {.uri = "/sleep", .method = HTTP_POST, .handler = post_sleep};
-    httpd_uri_t update = {.uri = "/update", .method = HTTP_POST, .handler = post_update};
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &status));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &wake));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &sleep));
+
+#if CONFIG_DEV_MODE
+    httpd_uri_t update = {.uri = "/debug/update", .method = HTTP_POST, .handler = post_update};
+    httpd_uri_t version = {.uri = "/debug/version", .method = HTTP_GET, .handler = get_version};
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &update));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &version));
+#endif
 }
 
 void app_main(void)

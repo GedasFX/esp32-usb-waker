@@ -1,0 +1,20 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "default",
+            "binaryDir": "build/default",
+            "cacheVariables": {
+                "SDKCONFIG": "./build/default/sdkconfig"
+            }
+        },
+        {
+            "name": "dev",
+            "binaryDir": "build/dev",
+            "cacheVariables": {
+                "SDKCONFIG_DEFAULTS": "sdkconfig.defaults;sdkconfig.dev",
+                "SDKCONFIG": "./build/dev/sdkconfig"
+            }
+        }
+    ]
+}
