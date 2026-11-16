@@ -18,7 +18,7 @@ sleep: USB is awake ~3 s after `/wake`, SSH answers ~1.5 s later.
 | `POST /debug/update` | `DEV_MODE` only; same token; the app image as the body; writes it to the free OTA slot and restarts |
 | `GET /debug/version` | `DEV_MODE` only; the running app's version |
 
-The board sends `quest-waker` as its DHCP hostname; a router that puts DHCP names in its DNS
+The board sends `esp32-usb-waker` as its DHCP hostname; a router that puts DHCP names in its DNS
 resolves it, so clients don't depend on the lease's address.
 
 ## Build and flash
@@ -46,7 +46,7 @@ Switching presets changes the partition table, so it takes a cable flash. In `DE
 update over Wi-Fi with:
 
 ```sh
-curl -H "Authorization: Bearer <token>" --data-binary @build/dev/quest-waker.bin http://<board>/debug/update
+curl -H "Authorization: Bearer <token>" --data-binary @build/dev/esp32-usb-waker.bin http://<board>/debug/update
 ```
 
 ## Example: wake before SSH

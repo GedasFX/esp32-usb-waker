@@ -19,7 +19,7 @@
 #include "esp_system.h"
 #endif
 
-#define HOSTNAME "quest-waker"
+#define HOSTNAME "esp32-usb-waker"
 
 static volatile bool remote_wakeup_enabled;
 
@@ -36,9 +36,9 @@ static const uint8_t report_descriptor[] = {
 static const char *string_descriptor[] = {
     (char[]){0x09, 0x04},
     "Snappi",
-    "Quest waker",
+    "USB waker",
     "1",
-    "Quest waker keyboard",
+    "USB waker keyboard",
 };
 
 static const uint8_t configuration_descriptor[] = {
@@ -176,7 +176,7 @@ static esp_err_t post_wake(httpd_req_t *request)
         return reply(request, "401 Unauthorized", "bad token\n");
     }
     if (!tud_mounted()) {
-        return reply(request, "409 Conflict", "usb unmounted: quest is off, hibernating or unplugged\n");
+        return reply(request, "409 Conflict", "usb unmounted: the host is off, hibernating or unplugged\n");
     }
     if (!tud_suspended()) {
         return reply(request, "200 OK", "awake\n");
@@ -188,14 +188,14 @@ static esp_err_t post_wake(httpd_req_t *request)
     return reply(request, "202 Accepted", "waking\n");
 }
 
-// Windows ignores a shorter press; with quest's display off, the first press only lights it.
+// Windows ignores a shorter press; with the host's display off, the first press only lights it.
 static esp_err_t post_sleep(httpd_req_t *request)
 {
     if (!authorized(request)) {
         return reply(request, "401 Unauthorized", "bad token\n");
     }
     if (!tud_mounted() || tud_suspended() || !tud_hid_ready()) {
-        return reply(request, "409 Conflict", "quest is not awake\n");
+        return reply(request, "409 Conflict", "the host is not awake\n");
     }
 
     // Press and release the sleep button
