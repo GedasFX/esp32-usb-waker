@@ -214,7 +214,7 @@ static bool suspended_within(int ms)
     return tud_suspended();
 }
 
-// With the host's display off, Windows spends the first press on turning the display on.
+// Once the host's display has turned off, the first press doesn't sleep it; the cause is unproven.
 static esp_err_t post_sleep(httpd_req_t *request)
 {
     if (!authorized(request)) {
