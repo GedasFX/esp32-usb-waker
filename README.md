@@ -23,7 +23,7 @@ curl -X POST -H "Authorization: Bearer <token>" http://<board>/wake
 |---|---|
 | `GET /status` | `usb`: what the PC is doing (below); `remoteWakeup`: whether the PC lets the board wake it |
 | `POST /wake` | wakes the PC: 202 when it sends the wake, 200 if the PC is already awake, 409 if it can't |
-| `POST /sleep` | sleeps the PC with the System Sleep key (a standard keyboard key in HID, the USB standard for keyboards), held for 500 ms; 409 if the PC isn't awake |
+| `POST /sleep` | sleeps the PC with the System Sleep key (a standard keyboard key in HID, the USB standard for keyboards), held for 500 ms; answers within about 7 s; 409 if the PC isn't awake |
 
 | `usb` | Means |
 |---|---|
@@ -97,7 +97,6 @@ exit 0
 - **Plugged in during sleep, it can't wake the PC.** The PC sets up USB devices only while
   awake, so until its next wake `/status` says `unmounted` and `/wake` returns 409. The same
   goes for a PC that is off or hibernating.
-- **With the PC's display off, the first `/sleep` only turns the display on.** Call it twice.
 - **Don't turn on auto light sleep** (the chip pausing itself between jobs to save power).
   The S3's USB can't wake the chip from it. When the PC restarts and asks the board what it
   is, the board sleeps through it; Windows gives up ("Device Descriptor Request Failed"),
