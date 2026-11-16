@@ -7,7 +7,7 @@ Keep this file current. No changelog — git log is the history.
 
 ## Where things live
 
-- `main/main.c`: all of it: USB HID, Wi-Fi, mDNS, the HTTP endpoints.
+- `main/main.c`: all of it: USB HID, Wi-Fi, the HTTP endpoints.
 - `main/secrets.h`: Wi-Fi and the wake token, git-ignored; `secrets.h.example` is the template.
 - `CMakePresets.json`: presets `default` and `dev`; `sdkconfig.dev` adds `DEV_MODE` and two
   OTA slots on top of `sdkconfig.defaults`.

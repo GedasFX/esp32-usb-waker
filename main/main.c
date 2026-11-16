@@ -8,7 +8,6 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "mdns.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 #include "tinyusb.h"
@@ -113,9 +112,6 @@ static void start_wifi(void)
 
     // The radio wakes for every 10th beacon, about once a second
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MAX_MODEM));
-
-    ESP_ERROR_CHECK(mdns_init());
-    ESP_ERROR_CHECK(mdns_hostname_set(HOSTNAME));
 }
 
 static const char *usb_state(void)
