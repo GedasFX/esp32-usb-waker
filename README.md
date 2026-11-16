@@ -10,13 +10,14 @@ sleep: USB is awake ~3 s after `/wake`, SSH answers ~1.5 s later.
 
 ## Endpoints
 
+Every endpoint needs the token from `secrets.h` as `Authorization: Bearer <token>`; without
+it, the board answers 401.
+
 | Endpoint | Does |
 |---|---|
 | `GET /status` | `usb`: `awake`, `suspended` or `unmounted`; `remoteWakeup`: whether the host allows a wake |
-| `POST /wake` | `Authorization: Bearer <token>`; USB remote wakeup, only while suspended and allowed |
-| `POST /sleep` | same token; holds the HID System Sleep key for 500 ms |
-| `POST /debug/update` | `DEV_MODE` only; same token; the app image as the body; writes it to the free OTA slot and restarts |
-| `GET /debug/version` | `DEV_MODE` only; the running app's version |
+| `POST /wake` | USB remote wakeup, only while suspended and allowed |
+| `POST /sleep` | holds the HID System Sleep key for 500 ms |
 
 The board sends `esp32-usb-waker` as its DHCP hostname; a router that puts DHCP names in its DNS
 resolves it, so clients don't depend on the lease's address.
@@ -32,22 +33,13 @@ resolves it, so clients don't depend on the lease's address.
    idf.py --preset default merge-bin    # build/default/merged-binary.bin
    ```
 
-3. Flash `merged-binary.bin` at `0x0`, with `idf.py -p <port> flash` or
+3. Erase the flash, then write `merged-binary.bin` at `0x0`, with `esptool` or
    [esptool-js](https://espressif.github.io/esptool-js/) in Chrome. Once the firmware runs,
    the S3's only USB port is the keyboard, so there is no serial port: to flash again, hold
    the BOOT button (B on the XIAO) while plugging the board in.
 
-| Preset | Builds into | Has |
-|---|---|---|
-| `default` | `build/default/` | one 1 MB app slot, no OTA |
-| `dev` | `build/dev/` | `DEV_MODE` (`sdkconfig.dev`): the `/debug/` endpoints, two 1.7 MB OTA slots |
-
-Switching presets changes the partition table, so it takes a cable flash. In `DEV_MODE`,
-update over Wi-Fi with:
-
-```sh
-curl -H "Authorization: Bearer <token>" --data-binary @build/dev/esp32-usb-waker.bin http://<board>/debug/update
-```
+The firmware has one 1 MB app slot and no way to update it over the network: a new version
+takes a cable flash.
 
 ## Example: wake before SSH
 
@@ -91,6 +83,36 @@ exit 0
 - **The board can only wake a PC that suspended it.** Plugged in while the PC sleeps, or
   with the PC off or hibernating, it stays `unmounted` and `/wake` returns 409.
 - **The token is compiled into the firmware.** Anyone holding the board can read it.
+
+## Debug mode
+
+For working on the firmware: the `dev` preset builds it with `DEV_MODE` (`sdkconfig.dev`),
+which adds two endpoints and two 1.7 MB app slots, so a new build goes over Wi-Fi.
+
+| Endpoint | Does |
+|---|---|
+| `POST /debug/update` | takes an app image as the body, writes it to the free slot and restarts into it |
+| `GET /debug/version` | the running app's version (`git describe` at build time) |
+
+Both need the token, like the rest. Anyone with the token can replace the firmware, so a
+board left in use runs the normal build.
+
+1. Build and cable-flash it once, as above, from `build/dev/`:
+
+   ```sh
+   idf.py --preset dev build
+   idf.py --preset dev merge-bin    # build/dev/merged-binary.bin
+   ```
+
+2. After each change, build and send the app (not the merged image):
+
+   ```sh
+   idf.py --preset dev build
+   curl -H "Authorization: Bearer <token>" --data-binary @build/dev/esp32-usb-waker.bin http://<board>/debug/update
+   ```
+
+3. When done, cable-flash the normal build with an erase: the two builds have different
+   partition tables.
 
 ## License
 
