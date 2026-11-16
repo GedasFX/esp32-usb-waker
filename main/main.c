@@ -192,7 +192,29 @@ static esp_err_t post_wake(httpd_req_t *request)
     return reply(request, "202 Accepted", "waking\n");
 }
 
-// Windows ignores a shorter press; with the host's display off, the first press only lights it.
+// Windows ignores a shorter press.
+static void press_sleep(void)
+{
+    uint8_t value = SYSTEM_SLEEP;
+    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
+    vTaskDelay(pdMS_TO_TICKS(500));
+    value = SYSTEM_RELEASE;
+    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
+}
+
+static bool suspended_within(int ms)
+{
+    for (int waited = 0; waited < ms; waited += 100) {
+        if (tud_suspended()) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    return tud_suspended();
+}
+
+// With the host's display off, Windows spends the first press on turning the display on.
 static esp_err_t post_sleep(httpd_req_t *request)
 {
     if (!authorized(request)) {
@@ -202,12 +224,10 @@ static esp_err_t post_sleep(httpd_req_t *request)
         return reply(request, "409 Conflict", "the host is not awake\n");
     }
 
-    // Press and release the sleep button
-    uint8_t value = SYSTEM_SLEEP;
-    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
-    vTaskDelay(pdMS_TO_TICKS(500));
-    value = SYSTEM_RELEASE;
-    tud_hid_report(REPORT_SYSTEM, &value, sizeof(value));
+    press_sleep();
+    if (!suspended_within(5000)) {
+        press_sleep();
+    }
 
     return reply(request, "202 Accepted", "sleeping\n");
 }
