@@ -21,7 +21,9 @@ With ESP-IDF v6.1 activated: `idf.py --preset default build`, and `--preset dev`
 
 - No auto light sleep: the S3's USB can't wake the chip, so it slept through the host's
   enumeration after a restart and Windows gave up on the device until a replug.
-- The System Sleep key is held 500 ms: Windows ignores 50 ms.
+- The System Sleep key is held 500 ms: Windows ignores 50 ms. `/sleep` presses it again if
+  the host hasn't suspended 5 s later: with the display off, Windows spends the first press
+  on turning the display on.
 - Every endpoint checks the token, `/status` too: nothing on the network learns whether the
   host sleeps.
 - OTA and the version endpoint exist only in `DEV_MODE`: a deployed board has no update path.
