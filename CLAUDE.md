@@ -36,3 +36,9 @@ With ESP-IDF v6.1 activated: `idf.py --preset default build`, and `--preset dev`
   reflash by holding BOOT while plugging in.
 - `app_update` stays in `PRIV_REQUIRES` in both builds: ESP-IDF can't make a component
   requirement depend on a Kconfig option.
+
+## Open items
+
+1. The keyboard collection sends nothing (only System Control is used). Drop it, then check
+   on the host that wake is still armed (`powercfg /devicequery wake_armed`) and run one
+   sleep–wake round. If wake stops being armed, keep it with a one-line comment saying why.
