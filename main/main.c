@@ -163,6 +163,10 @@ static esp_err_t reply(httpd_req_t *request, const char *status, const char *bod
 
 static esp_err_t get_status(httpd_req_t *request)
 {
+    if (!authorized(request)) {
+        return reply(request, "401 Unauthorized", "bad token\n");
+    }
+
     char body[160];
     snprintf(body, sizeof(body), "{\"usb\":\"%s\",\"remoteWakeup\":%s}\n", usb_state(), remote_wakeup_enabled ? "true" : "false");
     httpd_resp_set_type(request, "application/json");
@@ -256,6 +260,10 @@ static esp_err_t post_update(httpd_req_t *request)
 
 static esp_err_t get_version(httpd_req_t *request)
 {
+    if (!authorized(request)) {
+        return reply(request, "401 Unauthorized", "bad token\n");
+    }
+
     char body[64];
     snprintf(body, sizeof(body), "{\"version\":\"%s\"}\n", esp_app_get_description()->version);
     httpd_resp_set_type(request, "application/json");
